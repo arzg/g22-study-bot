@@ -140,6 +140,20 @@ struct General;
 
 #[command]
 async fn prune(ctx: &Context, message: &Message, mut args: Args) -> CommandResult {
+    let permissions = message
+        .member(&ctx.http)
+        .await?
+        .permissions(&ctx.cache)
+        .await?;
+
+    if !permissions.manage_messages() {
+        message
+            .reply(&ctx.http, "You need to have Manage Messages to use prune.")
+            .await?;
+
+        return Ok(());
+    }
+
     let num_messages_to_prune = args.single()?;
 
     let messages = message
