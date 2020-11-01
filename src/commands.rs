@@ -1,6 +1,6 @@
-mod assignments;
+mod calendar;
 
-pub(crate) use assignments::*;
+pub(crate) use calendar::*;
 
 use serenity::prelude::TypeMapKey;
 use std::path::PathBuf;
