@@ -168,7 +168,7 @@ impl Handler {
             Arc::clone(data.get::<Config>().unwrap())
         };
 
-        fs::write(config_dir.as_path(), serde_json::to_vec(&*calendar)?).await?;
+        fs::write(config_dir.as_path(), bincode::serialize(&*calendar)?).await?;
 
         Ok(())
     }

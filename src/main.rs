@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
             fs::create_dir_all(app_strategy.data_dir()).await?;
             CalendarData::default()
         } else {
-            serde_json::from_slice(&fs::read(calendar_path).await?)?
+            bincode::deserialize(&fs::read(calendar_path).await?)?
         };
 
         let mut data = client.data.write().await;
