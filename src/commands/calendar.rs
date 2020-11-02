@@ -1,6 +1,5 @@
-use super::Config;
 use crate::Handler;
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, NaiveDate};
 use serde::{Deserialize, Serialize};
 use serenity::builder::CreateMessage;
 use serenity::client::Context;
@@ -14,7 +13,6 @@ use serenity::prelude::TypeMapKey;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
-use tokio::fs;
 use tokio::sync::RwLock;
 
 const CALENDAR_CHANNEL_ID: ChannelId = ChannelId(771595328029589544);
@@ -99,108 +97,33 @@ impl Handler {
             return Ok(());
         }
 
-        {
-            let calendar = {
-                let data = ctx.data.read().await;
-                Arc::clone(data.get::<Calendar>().unwrap())
-            };
-            let calendar = calendar.read().await;
-            let submission_being_reacted_to =
-                calendar.assignments.get(&reaction.message_id).unwrap();
+        let calendar = {
+            let data = ctx.data.read().await;
+            Arc::clone(data.get::<Calendar>().unwrap())
+        };
+        let mut calendar = calendar.write().await;
+        let submission_being_reacted_to =
+            calendar.assignments.get_mut(&reaction.message_id).unwrap();
 
-            if submission_being_reacted_to.accepted {
-                return Ok(());
-            }
+        if submission_being_reacted_to.accepted {
+            return Ok(());
         }
 
         let reaction_message = reaction.message(&ctx.http).await?;
 
         if self.is_submission_accepted(ctx, &reaction_message).await? {
-            let calendar = {
-                let data = ctx.data.read().await;
-                Arc::clone(data.get::<Calendar>().unwrap())
-            };
+            submission_being_reacted_to.accepted = true;
 
-            {
-                let mut calendar = calendar.write().await;
-
-                calendar
-                    .assignments
-                    .get_mut(&reaction_message.id)
-                    .unwrap()
-                    .accepted = true;
-            }
-
-            self.refresh_calendar(ctx).await?;
-        }
-
-        Ok(())
-    }
-
-    pub(crate) async fn refresh_calendar(&self, ctx: &Context) -> anyhow::Result<()> {
-        let calendar = {
-            let data = ctx.data.read().await;
-            Arc::clone(data.get::<Calendar>().unwrap())
-        };
-
-        let messages = CALENDAR_CHANNEL_ID
-            .messages(&ctx.http, |get_messages| get_messages)
-            .await?;
-
-        for message in messages {
-            CALENDAR_CHANNEL_ID
-                .delete_message(&ctx.http, message)
-                .await?;
-        }
-
-        let calendar = calendar.read().await;
-
-        for assignment in calendar.assignments.values() {
             CALENDAR_CHANNEL_ID
                 .send_message(&ctx.http, |create_message| {
-                    assignment.create_message(create_message)
+                    create_message
+                        .content(reaction_message.content)
+                        .add_files(submission_being_reacted_to.notifications.clone())
                 })
                 .await?;
         }
 
-        let config_dir = {
-            let data = ctx.data.read().await;
-            Arc::clone(data.get::<Config>().unwrap())
-        };
-
-        fs::write(config_dir.as_path(), bincode::serialize(&*calendar)?).await?;
-
         Ok(())
-    }
-
-    pub(crate) async fn calendar_is_outdated(&self, ctx: &Context) -> bool {
-        let calendar = {
-            let data = ctx.data.read().await;
-            Arc::clone(data.get::<Calendar>().unwrap())
-        };
-
-        let calendar = calendar.read().await;
-
-        let now = Local::today().naive_local();
-
-        calendar
-            .assignments
-            .values()
-            .any(|assignment| assignment.due_date < now)
-    }
-
-    pub(crate) async fn remove_outdated_assignments(&self, ctx: &Context) {
-        let calendar = {
-            let data = ctx.data.write().await;
-            Arc::clone(data.get::<Calendar>().unwrap())
-        };
-
-        let mut calendar = calendar.write().await;
-
-        let now = Local::today().naive_local();
-        calendar
-            .assignments
-            .retain(|_, assignment| assignment.due_date >= now);
     }
 }
 

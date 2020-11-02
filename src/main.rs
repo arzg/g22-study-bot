@@ -2,7 +2,6 @@ mod commands;
 mod flash_cards;
 
 use commands::*;
-use etcetera::app_strategy::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use serenity::async_trait;
 use serenity::client::{Client, Context, EventHandler};
 use serenity::framework::standard::macros::{command, group};
@@ -11,17 +10,10 @@ use serenity::model::channel::{Message, Reaction, ReactionType};
 use serenity::model::gateway::Ready;
 use std::convert::TryFrom;
 use std::sync::Arc;
-use tokio::fs;
 use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let app_strategy = choose_app_strategy(AppStrategyArgs {
-        top_level_domain: "io.github".to_string(),
-        author: "arzg".to_string(),
-        app_name: "g22-study-bot".to_string(),
-    })?;
-
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~"))
         .group(&GENERAL_GROUP);
@@ -34,18 +26,8 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     {
-        let calendar_path = app_strategy.in_data_dir("calendar");
-
-        let calendar = if !calendar_path.exists() {
-            fs::create_dir_all(app_strategy.data_dir()).await?;
-            CalendarData::default()
-        } else {
-            bincode::deserialize(&fs::read(calendar_path).await?)?
-        };
-
         let mut data = client.data.write().await;
-        data.insert::<Calendar>(Arc::new(RwLock::new(calendar)));
-        data.insert::<Config>(Arc::new(app_strategy.in_data_dir("calendar")));
+        data.insert::<Calendar>(Arc::new(RwLock::new(CalendarData::default())));
     }
 
     client.start().await?;
@@ -65,13 +47,6 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, message: Message) {
-        if self.calendar_is_outdated(&ctx).await {
-            self.remove_outdated_assignments(&ctx).await;
-            if let Err(e) = self.refresh_calendar(&ctx).await {
-                eprintln!("Error: {}", e);
-            }
-        }
-
         if let Err(e) = self.handle_message(&ctx, message).await {
             eprintln!("Error: {}", e);
         }
