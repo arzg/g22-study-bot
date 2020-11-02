@@ -102,8 +102,11 @@ impl Handler {
             Arc::clone(data.get::<Calendar>().unwrap())
         };
         let mut calendar = calendar.write().await;
-        let submission_being_reacted_to =
-            calendar.assignments.get_mut(&reaction.message_id).unwrap();
+
+        let submission_being_reacted_to = match calendar.assignments.get_mut(&reaction.message_id) {
+            Some(submission) => submission,
+            None => return Ok(()),
+        };
 
         if submission_being_reacted_to.accepted {
             return Ok(());
