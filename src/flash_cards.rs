@@ -6,7 +6,7 @@ use serenity::model::id::{ChannelId, MessageId};
 use serenity::model::misc::Mentionable;
 use serenity::model::user::User;
 
-const FOR_REVIEW_CHANNEL_ID: ChannelId = ChannelId(771692014885404692);
+const FOR_REVIEW_CHANNEL_ID: ChannelId = ChannelId(793720525250756639);
 const FLASH_CARDS_CHANNEL_ID: ChannelId = ChannelId(771593804057673767);
 
 impl Handler {
